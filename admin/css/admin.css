@@ -1,0 +1,212 @@
+/* ScrubDB — Admin Styles */
+
+.scrubdb-wrap {
+    max-width: 1200px;
+}
+
+.scrubdb-subtitle {
+    font-size: 14px;
+    color: #646970;
+    margin-bottom: 24px;
+}
+
+/* Sections */
+.scrubdb-section {
+    margin-bottom: 32px;
+}
+
+.scrubdb-section h2 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+/* Card Grid */
+.scrubdb-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+}
+
+.scrubdb-card {
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-radius: 8px;
+    padding: 20px;
+    transition: box-shadow 0.2s ease;
+}
+
+.scrubdb-card:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.scrubdb-card-wide {
+    grid-column: 1 / -1;
+}
+
+.scrubdb-card h3 {
+    margin: 0 0 6px;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.scrubdb-card p {
+    margin: 0 0 14px;
+    color: #646970;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.scrubdb-card code {
+    font-size: 12px;
+    background: #f0f0f1;
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+/* Actions */
+.scrubdb-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.scrubdb-btn-danger {
+    background: #d63638 !important;
+    border-color: #d63638 !important;
+    color: #fff !important;
+}
+
+.scrubdb-btn-danger:hover {
+    background: #b32d2e !important;
+    border-color: #b32d2e !important;
+}
+
+.scrubdb-btn-danger:focus {
+    box-shadow: 0 0 0 1px #fff, 0 0 0 3px #d63638 !important;
+}
+
+/* Results */
+.scrubdb-result {
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.scrubdb-result:empty {
+    display: none;
+}
+
+/* Badges */
+.scrubdb-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-right: 6px;
+}
+
+.scrubdb-badge-green  { background: #d4edda; color: #155724; }
+.scrubdb-badge-yellow { background: #fff3cd; color: #856404; }
+.scrubdb-badge-red    { background: #f8d7da; color: #721c24; }
+.scrubdb-badge-blue   { background: #d1ecf1; color: #0c5460; }
+
+/* Tables */
+.scrubdb-result table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    font-size: 12px;
+}
+
+.scrubdb-result table th,
+.scrubdb-result table td {
+    padding: 6px 10px;
+    text-align: left;
+    border-bottom: 1px solid #f0f0f1;
+}
+
+.scrubdb-result table th {
+    background: #f6f7f7;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #646970;
+}
+
+.scrubdb-result table tr:hover td {
+    background: #f9f9f9;
+}
+
+/* Spinner */
+.scrubdb-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #dcdcde;
+    border-top-color: #2271b1;
+    border-radius: 50%;
+    animation: scrubdb-spin 0.6s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+}
+
+@keyframes scrubdb-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Debug log viewer */
+.scrubdb-log-viewer {
+    background: #1d2327;
+    color: #d4d4d4;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    padding: 12px;
+    border-radius: 6px;
+    max-height: 300px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin-top: 10px;
+}
+
+/* Database overview stats */
+.scrubdb-stats {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.scrubdb-stat {
+    background: #f6f7f7;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 12px 20px;
+    text-align: center;
+    min-width: 140px;
+}
+
+.scrubdb-stat-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: #1d2327;
+    display: block;
+}
+
+.scrubdb-stat-label {
+    font-size: 12px;
+    color: #646970;
+    margin-top: 4px;
+    display: block;
+}
+
+/* Loading state */
+.scrubdb-card.scrubdb-loading {
+    opacity: 0.7;
+    pointer-events: none;
+}
