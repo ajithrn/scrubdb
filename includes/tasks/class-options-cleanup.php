@@ -1,6 +1,7 @@
 <?php
 /**
  * Task module: wp_options table — transients, autoload audit.
+ * Returns sample items for preview in dry-run mode.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -29,6 +30,28 @@ class ScrubDB_Task_Options_Cleanup {
             $like, $now
         ) );
 
+        // Sample expired transients.
+        $items = $wpdb->get_results( $wpdb->prepare(
+            "SELECT option_name,
+                    FROM_UNIXTIME(option_value) AS expired_at,
+                    ROUND(LENGTH(option_value) / 1024, 2) AS size_kb
+             FROM {$wpdb->options}
+             WHERE option_name LIKE %s AND option_value < %d
+             ORDER BY option_value ASC LIMIT 20",
+            $like, $now
+        ) );
+
+        // Strip _transient_timeout_ prefix for readability.
+        foreach ( $items as &$item ) {
+            $item->option_name = str_replace( '_transient_timeout_', '', $item->option_name );
+        }
+        unset( $item );
+
+        $items_columns = [
+            [ 'label' => 'Transient Name', 'key' => 'option_name', 'mono' => true ],
+            [ 'label' => 'Expired At',     'key' => 'expired_at' ],
+        ];
+
         $deleted = 0;
         if ( 'clean' === $mode && $count > 0 ) {
             $wpdb->query( $wpdb->prepare(
@@ -50,7 +73,7 @@ class ScrubDB_Task_Options_Cleanup {
             $deleted = $count;
         }
 
-        return compact( 'count', 'deleted', 'mode' );
+        return compact( 'count', 'items', 'items_columns', 'deleted', 'mode' );
     }
 
     public function task_all_transients( $mode ) {
@@ -70,6 +93,23 @@ class ScrubDB_Task_Options_Cleanup {
             $like, $slike
         ) ) ?: '0';
 
+        // Sample transients.
+        $items = $wpdb->get_results( $wpdb->prepare(
+            "SELECT option_name,
+                    ROUND(LENGTH(option_value) / 1024, 2) AS size_kb,
+                    autoload
+             FROM {$wpdb->options}
+             WHERE option_name LIKE %s OR option_name LIKE %s
+             ORDER BY LENGTH(option_value) DESC LIMIT 20",
+            $like, $slike
+        ) );
+
+        $items_columns = [
+            [ 'label' => 'Option Name', 'key' => 'option_name', 'mono' => true ],
+            [ 'label' => 'Size',        'key' => 'size_kb',     'suffix' => 'KB' ],
+            [ 'label' => 'Autoload',    'key' => 'autoload' ],
+        ];
+
         $deleted = 0;
         if ( 'clean' === $mode && $count > 0 ) {
             $deleted = (int) $wpdb->query( $wpdb->prepare(
@@ -78,7 +118,7 @@ class ScrubDB_Task_Options_Cleanup {
             ) );
         }
 
-        return compact( 'count', 'size', 'deleted', 'mode' );
+        return compact( 'count', 'size', 'items', 'items_columns', 'deleted', 'mode' );
     }
 
     public function task_autoload_audit( $mode ) {

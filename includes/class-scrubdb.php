@@ -29,7 +29,33 @@ class ScrubDB {
         add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_assets' ] );
         add_action( 'wp_ajax_scrubdb', [ $this, 'ajax_handler' ] );
 
+        // Plugin listing links.
+        add_filter( 'plugin_action_links_' . SCRUBDB_BASENAME, [ $this, 'action_links' ] );
+        add_filter( 'plugin_row_meta', [ $this, 'row_meta' ], 10, 2 );
+
         $this->register_tasks();
+    }
+
+    /**
+     * Add "Settings" link on the Plugins listing page.
+     */
+    public function action_links( $links ) {
+        $settings_link = '<a href="' . admin_url( 'tools.php?page=scrubdb' ) . '">' . __( 'Settings', 'scrubdb' ) . '</a>';
+        array_unshift( $links, $settings_link );
+        return $links;
+    }
+
+    /**
+     * Add extra meta links on the Plugins listing page.
+     */
+    public function row_meta( $links, $file ) {
+        if ( SCRUBDB_BASENAME !== $file ) {
+            return $links;
+        }
+
+        $links[] = '<a href="' . admin_url( 'tools.php?page=scrubdb' ) . '">' . __( 'Documentation', 'scrubdb' ) . '</a>';
+
+        return $links;
     }
 
     /**
