@@ -273,17 +273,7 @@ class ScrubDB_Task_Database_Ops {
      * Returns [ 'name' => string, 'status' => 'active'|'inactive'|'unknown' ]
      */
     private static function identify_table_owner( $short_name, $plugin_matchers, $active_plugins ) {
-        // 1. Check against active plugin patterns.
-        foreach ( $plugin_matchers as $matcher ) {
-            foreach ( $matcher['patterns'] as $pattern ) {
-                if ( strpos( $short_name, $pattern ) === 0 || strpos( $short_name, $pattern . '_' ) !== false ) {
-                    return [ 'name' => $matcher['name'], 'status' => 'active' ];
-                }
-            }
-        }
-
-        // 2. Check against known plugin table prefixes (covers common plugins
-        //    that use abbreviations or shared libraries).
+        // 1. Check against known plugin table prefixes first (most reliable).
         $known_map = self::get_known_table_map();
         foreach ( $known_map as $prefix => $info ) {
             if ( strpos( $short_name, $prefix ) === 0 ) {
@@ -303,15 +293,56 @@ class ScrubDB_Task_Database_Ops {
             }
         }
 
-        // 3. Try to guess from the table name itself.
-        // Look for installed (but inactive) plugins in the plugins directory.
+        // 2. Check against active plugin slug patterns.
+        foreach ( $plugin_matchers as $matcher ) {
+            foreach ( $matcher['patterns'] as $pattern ) {
+                // Match if table starts with pattern, or pattern appears as a segment.
+                if ( strpos( $short_name, $pattern ) === 0 ||
+                     strpos( $short_name, $pattern . '_' ) !== false ) {
+                    return [ 'name' => $matcher['name'], 'status' => 'active' ];
+                }
+            }
+        }
+
+        // 3. Check ALL installed plugins (active + inactive) with flexible matching.
         $all_plugins = get_plugins();
         foreach ( $all_plugins as $file => $data ) {
             $slug = dirname( $file );
-            if ( '.' === $slug ) continue;
+            if ( '.' === $slug ) {
+                $slug = basename( $file, '.php' );
+            }
+
             $normalized = str_replace( '-', '_', $slug );
+            $is_active  = in_array( $file, $active_plugins, true );
+
+            // Exact start match.
             if ( strpos( $short_name, $normalized ) === 0 ) {
-                $is_active = in_array( $file, $active_plugins, true );
+                return [
+                    'name'   => $data['Name'] ?? $slug,
+                    'status' => $is_active ? 'active' : 'inactive',
+                ];
+            }
+
+            // Also try: remove common prefixes like "wp_" from the slug.
+            $stripped = preg_replace( '/^(wp_|wordpress_)/', '', $normalized );
+            if ( $stripped !== $normalized && strlen( $stripped ) >= 3 && strpos( $short_name, $stripped ) === 0 ) {
+                return [
+                    'name'   => $data['Name'] ?? $slug,
+                    'status' => $is_active ? 'active' : 'inactive',
+                ];
+            }
+
+            // Check if slug (without hyphens/underscores) appears at start of table name.
+            $compact = str_replace( '_', '', $normalized );
+            if ( strlen( $compact ) >= 4 && strpos( $short_name, $compact ) === 0 ) {
+                return [
+                    'name'   => $data['Name'] ?? $slug,
+                    'status' => $is_active ? 'active' : 'inactive',
+                ];
+            }
+
+            // Check if table name contains the slug as a segment.
+            if ( strlen( $normalized ) >= 4 && strpos( $short_name, $normalized . '_' ) !== false ) {
                 return [
                     'name'   => $data['Name'] ?? $slug,
                     'status' => $is_active ? 'active' : 'inactive',
@@ -324,91 +355,34 @@ class ScrubDB_Task_Database_Ops {
 
     /**
      * Known mapping of table prefixes to plugins.
-     * Covers popular plugins that use non-obvious table naming.
+     * Loaded from data/known-tables.json for easy maintenance.
      */
     private static function get_known_table_map() {
-        return [
-            // WooCommerce ecosystem.
-            'wc_'              => [ 'name' => 'WooCommerce',           'slugs' => [ 'woocommerce' ] ],
-            'woocommerce_'     => [ 'name' => 'WooCommerce',           'slugs' => [ 'woocommerce' ] ],
+        static $map = null;
 
-            // Action Scheduler (shared library — WooCommerce, EDD, etc.).
-            'actionscheduler_' => [ 'name' => 'Action Scheduler (WooCommerce/EDD)', 'slugs' => [ 'woocommerce', 'easy-digital-downloads' ] ],
+        if ( null === $map ) {
+            $file = SCRUBDB_PATH . 'data/known-tables.json';
+            if ( file_exists( $file ) ) {
+                $json = file_get_contents( $file );
+                $data = json_decode( $json, true );
+                if ( is_array( $data ) ) {
+                    // Remove metadata keys (start with _).
+                    $map = [];
+                    foreach ( $data as $key => $value ) {
+                        if ( strpos( $key, '_' ) === 0 && ! isset( $value['slugs'] ) ) {
+                            continue;
+                        }
+                        $map[ $key ] = $value;
+                    }
+                } else {
+                    $map = [];
+                }
+            } else {
+                $map = [];
+            }
+        }
 
-            // Yoast SEO.
-            'yoast_'           => [ 'name' => 'Yoast SEO',             'slugs' => [ 'wordpress-seo', 'wordpress-seo-premium' ] ],
-
-            // Elementor.
-            'e_'               => [ 'name' => 'Elementor',             'slugs' => [ 'elementor', 'elementor-pro' ] ],
-
-            // All in One SEO.
-            'aioseo_'          => [ 'name' => 'All in One SEO',        'slugs' => [ 'all-in-one-seo-pack' ] ],
-
-            // Gravity Forms.
-            'gf_'              => [ 'name' => 'Gravity Forms',         'slugs' => [ 'gravityforms' ] ],
-            'rg_'              => [ 'name' => 'Gravity Forms',         'slugs' => [ 'gravityforms' ] ],
-
-            // WPForms.
-            'wpforms_'         => [ 'name' => 'WPForms',               'slugs' => [ 'wpforms-lite', 'wpforms' ] ],
-
-            // Redirection.
-            'redirection_'     => [ 'name' => 'Redirection',           'slugs' => [ 'redirection' ] ],
-
-            // UpdraftPlus.
-            'updraft'          => [ 'name' => 'UpdraftPlus',           'slugs' => [ 'updraftplus' ] ],
-
-            // Wordfence.
-            'wfblockediplog'   => [ 'name' => 'Wordfence',             'slugs' => [ 'wordfence' ] ],
-            'wfblocks'         => [ 'name' => 'Wordfence',             'slugs' => [ 'wordfence' ] ],
-            'wfconfig'         => [ 'name' => 'Wordfence',             'slugs' => [ 'wordfence' ] ],
-            'wfcrawlers'       => [ 'name' => 'Wordfence',             'slugs' => [ 'wordfence' ] ],
-            'wffilechanges'    => [ 'name' => 'Wordfence',             'slugs' => [ 'wordfence' ] ],
-            'wffilemods'       => [ 'name' => 'Wordfence',             'slugs' => [ 'wordfence' ] ],
-            'wfhits'           => [ 'name' => 'Wordfence',             'slugs' => [ 'wordfence' ] ],
-            'wfhoover'         => [ 'name' => 'Wordfence',             'slugs' => [ 'wordfence' ] ],
-            'wfissues'         => [ 'name' => 'Wordfence',             'slugs' => [ 'wordfence' ] ],
-            'wfknownfilelist'  => [ 'name' => 'Wordfence',             'slugs' => [ 'wordfence' ] ],
-            'wflivetraffichuman' => [ 'name' => 'Wordfence',           'slugs' => [ 'wordfence' ] ],
-            'wflocs'           => [ 'name' => 'Wordfence',             'slugs' => [ 'wordfence' ] ],
-            'wflogins'         => [ 'name' => 'Wordfence',             'slugs' => [ 'wordfence' ] ],
-            'wfls_'            => [ 'name' => 'Wordfence',             'slugs' => [ 'wordfence' ] ],
-            'wfnotifications'  => [ 'name' => 'Wordfence',             'slugs' => [ 'wordfence' ] ],
-            'wfpendingissues'  => [ 'name' => 'Wordfence',             'slugs' => [ 'wordfence' ] ],
-            'wfreversecache'   => [ 'name' => 'Wordfence',             'slugs' => [ 'wordfence' ] ],
-            'wfsnipcache'      => [ 'name' => 'Wordfence',             'slugs' => [ 'wordfence' ] ],
-            'wfstatus'         => [ 'name' => 'Wordfence',             'slugs' => [ 'wordfence' ] ],
-            'wftrafficrate'    => [ 'name' => 'Wordfence',             'slugs' => [ 'wordfence' ] ],
-
-            // Rank Math.
-            'rank_math_'       => [ 'name' => 'Rank Math',             'slugs' => [ 'seo-by-rank-math' ] ],
-
-            // Easy Digital Downloads.
-            'edd_'             => [ 'name' => 'Easy Digital Downloads', 'slugs' => [ 'easy-digital-downloads' ] ],
-
-            // TablePress.
-            'tablepress'       => [ 'name' => 'TablePress',            'slugs' => [ 'tablepress' ] ],
-
-            // WP Mail SMTP.
-            'wpmailsmtp_'      => [ 'name' => 'WP Mail SMTP',          'slugs' => [ 'wp-mail-smtp' ] ],
-
-            // Mailchimp for WP.
-            'mc4wp_'           => [ 'name' => 'Mailchimp for WP',      'slugs' => [ 'mailchimp-for-wp' ] ],
-
-            // LiteSpeed Cache.
-            'litespeed_'       => [ 'name' => 'LiteSpeed Cache',       'slugs' => [ 'litespeed-cache' ] ],
-
-            // BerqWP / Flavor.
-            'berqwp_'          => [ 'name' => 'BerqWP',                'slugs' => [ 'flavor', 'flavor-jenga' ] ],
-
-            // Statistics.
-            'statistics_'      => [ 'name' => 'WP Statistics',         'slugs' => [ 'wp-statistics' ] ],
-
-            // WP Rocket.
-            'wpr_'             => [ 'name' => 'WP Rocket',             'slugs' => [ 'wp-rocket' ] ],
-
-            // Jetpack.
-            'jetpack_'         => [ 'name' => 'Jetpack',               'slugs' => [ 'jetpack' ] ],
-        ];
+        return $map;
     }
 
     /**
