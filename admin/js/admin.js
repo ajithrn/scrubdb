@@ -585,7 +585,8 @@
 
     function formatStatus(val) {
         var cls = 'scrubdb-status-' + val;
-        var label = val === 'core' ? 'Core' : (val === 'active' ? 'Active' : (val === 'inactive' ? 'Inactive' : 'Unknown'));
+        var labels = { core: 'Core', active: 'Active', inactive: 'Inactive', uninstalled: 'Uninstalled', unknown: 'Unknown' };
+        var label = labels[val] || 'Unknown';
         return '<span class="scrubdb-status ' + cls + '">' + label + '</span>';
     }
 

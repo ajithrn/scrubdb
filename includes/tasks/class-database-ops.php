@@ -270,25 +270,23 @@ class ScrubDB_Task_Database_Ops {
 
     /**
      * Try to identify which plugin created a table based on its name.
-     * Returns [ 'name' => string, 'status' => 'active'|'inactive'|'unknown' ]
+     * Returns [ 'name' => string, 'status' => 'active'|'inactive'|'uninstalled'|'unknown' ]
      */
     private static function identify_table_owner( $short_name, $plugin_matchers, $active_plugins ) {
+        // Get all installed plugins once for reuse.
+        static $all_plugins = null;
+        if ( null === $all_plugins ) {
+            $all_plugins = get_plugins();
+        }
+
         // 1. Check against known plugin table prefixes first (most reliable).
         $known_map = self::get_known_table_map();
         foreach ( $known_map as $prefix => $info ) {
             if ( strpos( $short_name, $prefix ) === 0 ) {
-                // Check if this known plugin is active.
-                $is_active = false;
-                foreach ( $active_plugins as $plugin_file ) {
-                    $plugin_slug = dirname( $plugin_file );
-                    if ( in_array( $plugin_slug, (array) $info['slugs'], true ) ) {
-                        $is_active = true;
-                        break;
-                    }
-                }
+                $status = self::get_plugin_status( (array) $info['slugs'], $active_plugins, $all_plugins );
                 return [
                     'name'   => $info['name'],
-                    'status' => $is_active ? 'active' : 'inactive',
+                    'status' => $status,
                 ];
             }
         }
@@ -305,7 +303,6 @@ class ScrubDB_Task_Database_Ops {
         }
 
         // 3. Check ALL installed plugins (active + inactive) with flexible matching.
-        $all_plugins = get_plugins();
         foreach ( $all_plugins as $file => $data ) {
             $slug = dirname( $file );
             if ( '.' === $slug ) {
@@ -351,6 +348,35 @@ class ScrubDB_Task_Database_Ops {
         }
 
         return [ 'name' => 'Unknown', 'status' => 'unknown' ];
+    }
+
+    /**
+     * Determine plugin status: active, inactive (installed but deactivated), or uninstalled.
+     *
+     * @param array $slugs        Plugin folder slugs to check.
+     * @param array $active_plugins Active plugins list from WP options.
+     * @param array $all_plugins  All installed plugins from get_plugins().
+     * @return string 'active', 'inactive', or 'uninstalled'
+     */
+    private static function get_plugin_status( $slugs, $active_plugins, $all_plugins ) {
+        // Check if any of the slugs match an active plugin.
+        foreach ( $active_plugins as $plugin_file ) {
+            $plugin_slug = dirname( $plugin_file );
+            if ( in_array( $plugin_slug, $slugs, true ) ) {
+                return 'active';
+            }
+        }
+
+        // Check if any of the slugs match an installed (but inactive) plugin.
+        foreach ( $all_plugins as $plugin_file => $data ) {
+            $plugin_slug = dirname( $plugin_file );
+            if ( in_array( $plugin_slug, $slugs, true ) ) {
+                return 'inactive';
+            }
+        }
+
+        // Plugin is not on the filesystem at all.
+        return 'uninstalled';
     }
 
     /**
