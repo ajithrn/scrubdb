@@ -260,6 +260,19 @@ $woo_active = class_exists( 'WooCommerce' ) || in_array( 'woocommerce/woocommerc
                     </div>
                     <div class="scrubdb-result" id="result-repair_tables"></div>
                 </div>
+
+                <!-- Orphaned Tables -->
+                <div class="scrubdb-card scrubdb-card-wide" id="card-orphaned_tables">
+                    <div class="scrubdb-card-header">
+                        <h3>Orphaned Tables</h3>
+                        <span class="scrubdb-card-tag scrubdb-tag-danger">Destructive</span>
+                    </div>
+                    <p>Detect database tables that don't belong to WordPress core or any currently active plugin. These are typically left behind by uninstalled plugins.</p>
+                    <div class="scrubdb-actions">
+                        <button type="button" class="button scrubdb-btn scrubdb-btn-scan" onclick="scrubdbRun('orphaned_tables', 'scan')"><span class="dashicons dashicons-search"></span> Scan</button>
+                    </div>
+                    <div class="scrubdb-result" id="result-orphaned_tables"></div>
+                </div>
             </div>
         </div>
 

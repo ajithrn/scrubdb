@@ -82,6 +82,7 @@
         if (task === 'debug_log')      return renderDebugLog(d);
         if (task === 'options_debug')  return renderOptionsDebug(d);
         if (task === 'repair_tables')  return renderRepair(d);
+        if (task === 'orphaned_tables') return renderOrphanedTables(d);
         return renderStandard(task, d);
     }
 
@@ -156,7 +157,8 @@
             columns.forEach(function (col) {
                 var val = row[col.key] != null ? String(row[col.key]) : '';
                 var cls = col.mono ? ' class="scrubdb-mono"' : '';
-                h += '<td' + cls + '>' + esc(val) + (col.suffix ? ' ' + col.suffix : '') + '</td>';
+                var display = col.format ? col.format(val, row) : esc(val) + (col.suffix ? ' ' + col.suffix : '');
+                h += '<td' + cls + '>' + display + '</td>';
             });
             h += '</tr>';
         });
@@ -276,21 +278,15 @@
         h += '</div>';
 
         if (d.tables && d.tables.length) {
-            h += '<div class="scrubdb-table-wrap"><table>';
-            h += '<tr><th>Table</th><th>Engine</th><th>Rows</th><th>Size</th><th>Overhead</th></tr>';
-            d.tables.forEach(function (r) {
-                var ohVal = parseFloat(r.overhead_size) || 0;
-                var isMB = r.overhead_size && r.overhead_size.indexOf('MB') > -1;
-                var ohCls = (isMB && ohVal > 1) ? ' style="color:#dc2626;font-weight:600;"' : '';
-                h += '<tr>';
-                h += '<td class="scrubdb-mono">' + esc(r.name) + '</td>';
-                h += '<td>' + esc(r.engine) + '</td>';
-                h += '<td>' + fmtNum(r.rows_count) + '</td>';
-                h += '<td>' + esc(r.total_size) + '</td>';
-                h += '<td' + ohCls + '>' + esc(r.overhead_size) + '</td>';
-                h += '</tr>';
-            });
-            h += '</table></div>';
+            h += sortableTable('db_info', d.tables, [
+                { label: 'Table',    key: 'name',          mono: true },
+                { label: 'Owner',    key: 'owner' },
+                { label: 'Status',   key: 'status',        format: formatStatus },
+                { label: 'Engine',   key: 'engine' },
+                { label: 'Rows',     key: 'rows_count' },
+                { label: 'Size',     key: 'total_size' },
+                { label: 'Overhead', key: 'overhead_size' }
+            ]);
         }
         return h;
     }
@@ -330,6 +326,47 @@
             });
             h += '</table></div>';
         }
+        return h;
+    }
+
+    // ─────────────────────────────────────────────────
+    // ORPHANED TABLES RENDERER
+    // ─────────────────────────────────────────────────
+
+    function renderOrphanedTables(d) {
+        var count = d.count || 0;
+        var h = '';
+
+        if (count === 0) {
+            h += badge('green', 'Clean') + ' No orphaned tables found — all tables match core or active plugins.';
+            return h;
+        }
+
+        h += badge('yellow', 'Found ' + count + ' orphaned table' + (count > 1 ? 's' : ''));
+        if (d.note) h += '<br><em style="color:#64748b;font-size:12px;">' + esc(d.note) + '</em>';
+
+        h += '<div id="scrubdb-drop-feedback" style="margin:10px 0;"></div>';
+
+        h += '<div class="scrubdb-warning"><strong>Caution:</strong> Only drop tables you are certain belong to plugins that are permanently removed. "Inactive" means we identified the plugin but it\'s not currently active — it may just be deactivated temporarily.</div>';
+
+        // Table with owner info and drop buttons.
+        h += '<div class="scrubdb-table-wrap"><table>';
+        h += '<tr><th>Table Name</th><th>Likely Owner</th><th>Status</th><th>Rows</th><th>Size</th><th>Action</th></tr>';
+        d.items.forEach(function (r) {
+            var safe = esc(r.name).replace(/'/g, "\\'");
+            var statusBadge = formatStatus(r.status);
+
+            h += '<tr data-table="' + esc(r.name) + '">';
+            h += '<td class="scrubdb-mono">' + esc(r.name) + '</td>';
+            h += '<td>' + esc(r.owner) + '</td>';
+            h += '<td>' + statusBadge + '</td>';
+            h += '<td>' + fmtNum(r.rows_count) + '</td>';
+            h += '<td>' + esc(r.size) + '</td>';
+            h += '<td><button type="button" class="scrubdb-inline-btn scrubdb-inline-btn-danger" onclick="scrubdbDropTable(\'' + safe + '\')">Drop</button></td>';
+            h += '</tr>';
+        });
+        h += '</table></div>';
+
         return h;
     }
 
@@ -546,12 +583,59 @@
         return Number(n || 0).toLocaleString();
     }
 
+    function formatStatus(val) {
+        var cls = 'scrubdb-status-' + val;
+        var label = val === 'core' ? 'Core' : (val === 'active' ? 'Active' : (val === 'inactive' ? 'Inactive' : 'Unknown'));
+        return '<span class="scrubdb-status ' + cls + '">' + label + '</span>';
+    }
+
     function esc(s) {
         if (!s) return '';
         var d = document.createElement('div');
         d.appendChild(document.createTextNode(s));
         return d.innerHTML;
     }
+
+    // ─────────────────────────────────────────────────
+    // ORPHANED TABLES — DROP TABLE WITH CONFIRMATION
+    // ─────────────────────────────────────────────────
+
+    window.scrubdbDropTable = function (tableName) {
+        var input = prompt(
+            'DANGER: This will permanently DROP the table "' + tableName + '".\n\n' +
+            'This cannot be undone. Type the full table name below to confirm:'
+        );
+
+        if (input === null) return; // Cancelled.
+        if (input !== tableName) {
+            $('#scrubdb-drop-feedback').html(
+                badge('red', 'Cancelled') + ' Table name did not match. Nothing was dropped.'
+            );
+            return;
+        }
+
+        var $feedback = $('#scrubdb-drop-feedback');
+        $feedback.html('<span class="scrubdb-spinner"></span> Dropping table…');
+
+        $.post(scrubdb.ajaxUrl, {
+            action: 'scrubdb',
+            nonce: scrubdb.nonce,
+            task: 'drop_table',
+            mode: 'clean',
+            table_name: tableName,
+            confirm_name: tableName
+        }).done(function (res) {
+            if (res.success && !res.data.error) {
+                $feedback.html(badge('green', 'Dropped') + ' ' + esc(res.data.message));
+                // Remove the row from the table.
+                $('[data-table="' + tableName + '"]').fadeOut(300, function () { $(this).remove(); });
+            } else {
+                $feedback.html(badge('red', 'Error') + ' ' + esc(res.data.error || 'Unknown error'));
+            }
+        }).fail(function () {
+            $feedback.html(badge('red', 'Error') + ' Request failed.');
+        });
+    };
 
     // ─────────────────────────────────────────────────
     // CHECK FOR UPDATES
