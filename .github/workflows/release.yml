@@ -1,0 +1,77 @@
+name: Auto Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'scrubdb.php'
+
+permissions:
+  contents: write
+
+jobs:
+  check-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get Version
+        id: get-version
+        run: |
+          VERSION=$(grep -oP "Version:\s*\K[0-9]+\.[0-9]+\.[0-9]+" scrubdb.php)
+          echo "Detected version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if tag exists
+        id: check-tag
+        uses: mukunku/tag-exists-action@v1.4.0
+        with:
+          tag: 'v${{ steps.get-version.outputs.version }}'
+
+      - name: Auto-Bump Version
+        if: steps.check-tag.outputs.exists == 'true'
+        run: |
+          CURRENT_VERSION="${{ steps.get-version.outputs.version }}"
+          echo "Tag v$CURRENT_VERSION exists. Auto-bumping patch..."
+
+          IFS='.' read -r -a parts <<< "$CURRENT_VERSION"
+          major="${parts[0]}"
+          minor="${parts[1]}"
+          patch="${parts[2]}"
+          new_patch=$((patch + 1))
+          NEW_VERSION="$major.$minor.$new_patch"
+          echo "New Version: $NEW_VERSION"
+
+          # Update scrubdb.php header
+          sed -i "s/Version: $CURRENT_VERSION/Version: $NEW_VERSION/" scrubdb.php
+          # Update SCRUBDB_VERSION constant
+          sed -i "s/define( 'SCRUBDB_VERSION', '$CURRENT_VERSION' );/define( 'SCRUBDB_VERSION', '$NEW_VERSION' );/" scrubdb.php
+
+          # Commit and push
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add scrubdb.php
+          git commit -m "chore: auto-bump version to $NEW_VERSION"
+          git push origin main
+
+          echo "Bumped to $NEW_VERSION. New workflow run will create the release."
+
+      - name: Create ZIP
+        if: steps.check-tag.outputs.exists == 'false'
+        run: |
+          mkdir -p /tmp/scrubdb
+          rsync -av --exclude='.git' --exclude='.github' --exclude='node_modules' --exclude='.gitignore' . /tmp/scrubdb/
+          cd /tmp && zip -r scrubdb.zip scrubdb/
+
+      - name: Create Release
+        if: steps.check-tag.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.get-version.outputs.version }}
+          name: v${{ steps.get-version.outputs.version }}
+          files: /tmp/scrubdb.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

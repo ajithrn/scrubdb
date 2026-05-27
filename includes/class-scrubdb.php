@@ -28,6 +28,7 @@ class ScrubDB {
         add_action( 'admin_menu', [ $this, 'add_menu' ] );
         add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_assets' ] );
         add_action( 'wp_ajax_scrubdb', [ $this, 'ajax_handler' ] );
+        add_action( 'wp_ajax_scrubdb_check_update', [ $this, 'check_update_handler' ] );
 
         // Plugin listing links.
         add_filter( 'plugin_action_links_' . SCRUBDB_BASENAME, [ $this, 'action_links' ] );
@@ -37,11 +38,11 @@ class ScrubDB {
     }
 
     /**
-     * Add "Settings" link on the Plugins listing page.
+     * Add "Dashboard" link on the Plugins listing page.
      */
     public function action_links( $links ) {
-        $settings_link = '<a href="' . admin_url( 'tools.php?page=scrubdb' ) . '">' . __( 'Settings', 'scrubdb' ) . '</a>';
-        array_unshift( $links, $settings_link );
+        $dashboard_link = '<a href="' . admin_url( 'tools.php?page=scrubdb' ) . '">' . __( 'Dashboard', 'scrubdb' ) . '</a>';
+        array_unshift( $links, $dashboard_link );
         return $links;
     }
 
@@ -148,6 +149,47 @@ class ScrubDB {
         $result         = $instance->$method( $mode );
         $result['task'] = $task;
         wp_send_json_success( $result );
+    }
+
+    /**
+     * Force check for plugin updates from GitHub.
+     * Clears the cached transient and fetches fresh data.
+     */
+    public function check_update_handler() {
+        check_ajax_referer( 'scrubdb_nonce', 'nonce' );
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( [ 'message' => 'Unauthorized.' ] );
+        }
+
+        // Clear the cached transient to force a fresh check.
+        $transient_key = 'scrubdb_github_update_' . md5( 'scrubdb' );
+        delete_site_transient( $transient_key );
+
+        // Fetch fresh data from GitHub.
+        $updater = new ScrubDB_GitHub_Updater( SCRUBDB_PATH . 'scrubdb.php', 'ajithrn/scrubdb' );
+        $remote  = $updater->fetch_github_release();
+
+        if ( ! $remote ) {
+            wp_send_json_success( [
+                'status'          => 'error',
+                'message'         => 'Could not reach GitHub. Try again later.',
+                'current_version' => SCRUBDB_VERSION,
+            ] );
+        }
+
+        // Cache the result.
+        set_site_transient( $transient_key, $remote, 12 * HOUR_IN_SECONDS );
+
+        $is_latest = version_compare( SCRUBDB_VERSION, $remote->new_version, '>=' );
+
+        wp_send_json_success( [
+            'status'          => $is_latest ? 'up_to_date' : 'update_available',
+            'current_version' => SCRUBDB_VERSION,
+            'remote_version'  => $remote->new_version,
+            'download_url'    => $remote->url,
+            'plugins_url'     => admin_url( 'plugins.php' ),
+        ] );
     }
 
     /**
