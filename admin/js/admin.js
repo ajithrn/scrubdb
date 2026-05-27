@@ -349,23 +349,17 @@
 
         h += '<div class="scrubdb-warning"><strong>Caution:</strong> Only drop tables you are certain belong to plugins that are permanently removed. "Inactive" means we identified the plugin but it\'s not currently active — it may just be deactivated temporarily.</div>';
 
-        // Table with owner info and drop buttons.
-        h += '<div class="scrubdb-table-wrap"><table>';
-        h += '<tr><th>Table Name</th><th>Likely Owner</th><th>Status</th><th>Rows</th><th>Size</th><th>Action</th></tr>';
-        d.items.forEach(function (r) {
-            var safe = esc(r.name).replace(/'/g, "\\'");
-            var statusBadge = formatStatus(r.status);
-
-            h += '<tr data-table="' + esc(r.name) + '">';
-            h += '<td class="scrubdb-mono">' + esc(r.name) + '</td>';
-            h += '<td>' + esc(r.owner) + '</td>';
-            h += '<td>' + statusBadge + '</td>';
-            h += '<td>' + fmtNum(r.rows_count) + '</td>';
-            h += '<td>' + esc(r.size) + '</td>';
-            h += '<td><button type="button" class="scrubdb-inline-btn scrubdb-inline-btn-danger" onclick="scrubdbDropTable(\'' + safe + '\')">Drop</button></td>';
-            h += '</tr>';
-        });
-        h += '</table></div>';
+        h += sortableTable('orphaned_tables', d.items, [
+            { label: 'Table Name',   key: 'name',       mono: true },
+            { label: 'Likely Owner', key: 'owner' },
+            { label: 'Status',       key: 'status',     format: formatStatus },
+            { label: 'Rows',         key: 'rows_count' },
+            { label: 'Size',         key: 'size' },
+            { label: 'Action',       key: 'name',       format: function (val) {
+                var safe = esc(val).replace(/'/g, "\\'");
+                return '<button type="button" class="scrubdb-inline-btn scrubdb-inline-btn-danger" onclick="scrubdbDropTable(\'' + safe + '\')">Drop</button>';
+            }}
+        ]);
 
         return h;
     }
