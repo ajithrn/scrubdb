@@ -32,7 +32,7 @@ class ScrubDB_Task_Content_Cleanup {
              FROM {$wpdb->posts} p
              LEFT JOIN {$wpdb->posts} parent ON p.post_parent = parent.ID
              WHERE p.post_type = 'revision'
-             ORDER BY p.post_date DESC LIMIT 20"
+             ORDER BY p.post_date DESC LIMIT 100"
         );
 
         $items_columns = [
@@ -59,7 +59,7 @@ class ScrubDB_Task_Content_Cleanup {
         $items = $wpdb->get_results(
             "SELECT ID, post_title, post_type, post_date
              FROM {$wpdb->posts} WHERE post_status = 'auto-draft'
-             ORDER BY post_date DESC LIMIT 20"
+             ORDER BY post_date DESC LIMIT 100"
         );
 
         $items_columns = [
@@ -86,7 +86,7 @@ class ScrubDB_Task_Content_Cleanup {
         $items = $wpdb->get_results(
             "SELECT ID, post_title, post_type, post_date
              FROM {$wpdb->posts} WHERE post_status = 'trash'
-             ORDER BY post_date DESC LIMIT 20"
+             ORDER BY post_date DESC LIMIT 100"
         );
 
         $items_columns = [
@@ -118,7 +118,7 @@ class ScrubDB_Task_Content_Cleanup {
         $items = $wpdb->get_results(
             "SELECT comment_ID, comment_author, LEFT(comment_content, 80) AS comment_content, comment_date
              FROM {$wpdb->comments} WHERE comment_approved = 'spam'
-             ORDER BY comment_date DESC LIMIT 20"
+             ORDER BY comment_date DESC LIMIT 100"
         );
 
         $items_columns = [
@@ -145,7 +145,7 @@ class ScrubDB_Task_Content_Cleanup {
         $items = $wpdb->get_results(
             "SELECT comment_ID, comment_author, LEFT(comment_content, 80) AS comment_content, comment_date
              FROM {$wpdb->comments} WHERE comment_approved = 'trash'
-             ORDER BY comment_date DESC LIMIT 20"
+             ORDER BY comment_date DESC LIMIT 100"
         );
 
         $items_columns = [
@@ -175,7 +175,7 @@ class ScrubDB_Task_Content_Cleanup {
         $items = $wpdb->get_results( $wpdb->prepare(
             "SELECT meta_id, post_id, meta_key, LEFT(meta_value, 80) AS meta_value
              FROM {$wpdb->postmeta} WHERE meta_key LIKE %s
-             ORDER BY meta_id DESC LIMIT 20", $like
+             ORDER BY meta_id DESC LIMIT 100", $like
         ) );
 
         $items_columns = [
@@ -205,7 +205,7 @@ class ScrubDB_Task_Content_Cleanup {
         $items = $wpdb->get_results(
             "SELECT comment_ID, comment_type, comment_author, comment_author_url, comment_date
              FROM {$wpdb->comments} WHERE comment_type IN ('pingback', 'trackback')
-             ORDER BY comment_date DESC LIMIT 20"
+             ORDER BY comment_date DESC LIMIT 100"
         );
 
         $items_columns = [
@@ -246,7 +246,7 @@ class ScrubDB_Task_Content_Cleanup {
                      GROUP BY post_id, meta_key, meta_value
                  ) AS keep_ids
              )
-             ORDER BY pm.meta_id DESC LIMIT 20"
+             ORDER BY pm.meta_id DESC LIMIT 100"
         );
 
         $items_columns = [

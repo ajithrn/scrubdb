@@ -31,7 +31,7 @@ class ScrubDB_Task_Orphaned_Data {
         // Sample items for preview.
         $items = $wpdb->get_results(
             "SELECT pm.meta_id, pm.post_id, pm.meta_key, LEFT(pm.meta_value, 60) AS meta_value
-             $join ORDER BY pm.meta_id DESC LIMIT 20"
+             $join ORDER BY pm.meta_id DESC LIMIT 100"
         );
 
         $items_columns = [
@@ -65,7 +65,7 @@ class ScrubDB_Task_Orphaned_Data {
 
         $items = $wpdb->get_results(
             "SELECT cm.meta_id, cm.comment_id, cm.meta_key, LEFT(cm.meta_value, 60) AS meta_value
-             $join ORDER BY cm.meta_id DESC LIMIT 20"
+             $join ORDER BY cm.meta_id DESC LIMIT 100"
         );
 
         $items_columns = [
@@ -94,7 +94,7 @@ class ScrubDB_Task_Orphaned_Data {
 
         $items = $wpdb->get_results(
             "SELECT tm.meta_id, tm.term_id, tm.meta_key, LEFT(tm.meta_value, 60) AS meta_value
-             $join ORDER BY tm.meta_id DESC LIMIT 20"
+             $join ORDER BY tm.meta_id DESC LIMIT 100"
         );
 
         $items_columns = [
@@ -123,7 +123,7 @@ class ScrubDB_Task_Orphaned_Data {
 
         $items = $wpdb->get_results(
             "SELECT um.umeta_id, um.user_id, um.meta_key, LEFT(um.meta_value, 60) AS meta_value
-             $join ORDER BY um.umeta_id DESC LIMIT 20"
+             $join ORDER BY um.umeta_id DESC LIMIT 100"
         );
 
         $items_columns = [
@@ -154,7 +154,7 @@ class ScrubDB_Task_Orphaned_Data {
             "SELECT tr.object_id, tr.term_taxonomy_id, tt.taxonomy
              $join
              LEFT JOIN {$wpdb->term_taxonomy} tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
-             ORDER BY tr.object_id DESC LIMIT 20"
+             ORDER BY tr.object_id DESC LIMIT 100"
         );
 
         $items_columns = [

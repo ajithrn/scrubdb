@@ -3,7 +3,7 @@
  * Plugin Name: ScrubDB
  * Plugin URI: https://github.com/ajithrn/scrubdb
  * Description: WordPress database diagnostic and cleanup tool — inspect bloat, find orphaned data, debug problematic options, and clean up when ready.
- * Version: 1.4.0
+ * Version: 1.5.1
  * Author: Ajith R N
  * Author URI: https://ajithrn.com
  * License: GPL v2 or later
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'SCRUBDB_VERSION', '1.4.0' );
+define( 'SCRUBDB_VERSION', '1.5.1' );
 define( 'SCRUBDB_PATH', plugin_dir_path( __FILE__ ) );
 define( 'SCRUBDB_URL', plugin_dir_url( __FILE__ ) );
 define( 'SCRUBDB_BASENAME', plugin_basename( __FILE__ ) );

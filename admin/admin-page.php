@@ -155,32 +155,30 @@ $woo_active = class_exists( 'WooCommerce' ) || in_array( 'woocommerce/woocommerc
                 <p class="scrubdb-section-desc">Inspect <code>wp_options</code> — the table that loads on every page request. Find what's bloating autoload, which plugins left transients behind, and manage individual options.</p>
             </div>
             <div class="scrubdb-cards">
-                <?php
-                $options_tasks = [
-                    'expired_transients' => [ 'Expired Transients', 'Transient cache entries that have passed their expiration time.', false ],
-                    'all_transients'     => [ 'All Transients', 'Remove ALL transient data — they will regenerate automatically as needed.', false ],
-                    'autoload_audit'     => [ 'Autoload Audit', 'Analyze which options are autoloaded on every page load. Ideal size is under 1 MB.', true ],
-                ];
-                foreach ( $options_tasks as $task => $info ) :
-                    $scan_only = $info[2];
-                ?>
-                <div class="scrubdb-card" id="card-<?php echo esc_attr( $task ); ?>">
+                <!-- Transients — side by side -->
+                <div class="scrubdb-card" id="card-expired_transients">
                     <div class="scrubdb-card-header">
-                        <h3><?php echo esc_html( $info[0] ); ?></h3>
-                        <?php if ( $scan_only ) : ?>
-                        <span class="scrubdb-card-tag scrubdb-tag-info">Read-Only</span>
-                        <?php endif; ?>
+                        <h3>Expired Transients</h3>
                     </div>
-                    <p><?php echo esc_html( $info[1] ); ?></p>
+                    <p>Transient cache entries that have passed their expiration time.</p>
                     <div class="scrubdb-actions">
-                        <button type="button" class="button scrubdb-btn scrubdb-btn-scan" onclick="scrubdbRun('<?php echo esc_js( $task ); ?>', 'scan')"><span class="dashicons dashicons-search"></span> <?php echo $scan_only ? 'Analyze' : 'Dry Run'; ?></button>
-                        <?php if ( ! $scan_only ) : ?>
-                        <button type="button" class="button scrubdb-btn scrubdb-btn-clean" onclick="scrubdbRun('<?php echo esc_js( $task ); ?>', 'clean')"><span class="dashicons dashicons-trash"></span> Clean</button>
-                        <?php endif; ?>
+                        <button type="button" class="button scrubdb-btn scrubdb-btn-scan" onclick="scrubdbRun('expired_transients', 'scan')"><span class="dashicons dashicons-search"></span> Dry Run</button>
+                        <button type="button" class="button scrubdb-btn scrubdb-btn-clean" onclick="scrubdbRun('expired_transients', 'clean')"><span class="dashicons dashicons-trash"></span> Clean</button>
                     </div>
-                    <div class="scrubdb-result" id="result-<?php echo esc_attr( $task ); ?>"></div>
+                    <div class="scrubdb-result" id="result-expired_transients"></div>
                 </div>
-                <?php endforeach; ?>
+
+                <div class="scrubdb-card" id="card-all_transients">
+                    <div class="scrubdb-card-header">
+                        <h3>All Transients</h3>
+                    </div>
+                    <p>Remove ALL transient data — they will regenerate automatically as needed.</p>
+                    <div class="scrubdb-actions">
+                        <button type="button" class="button scrubdb-btn scrubdb-btn-scan" onclick="scrubdbRun('all_transients', 'scan')"><span class="dashicons dashicons-search"></span> Dry Run</button>
+                        <button type="button" class="button scrubdb-btn scrubdb-btn-clean" onclick="scrubdbRun('all_transients', 'clean')"><span class="dashicons dashicons-trash"></span> Clean</button>
+                    </div>
+                    <div class="scrubdb-result" id="result-all_transients"></div>
+                </div>
 
                 <!-- Options X-Ray — full width -->
                 <div class="scrubdb-card scrubdb-card-wide" id="card-options_debug">
@@ -188,7 +186,7 @@ $woo_active = class_exists( 'WooCommerce' ) || in_array( 'woocommerce/woocommerc
                         <h3>Options Table X-Ray</h3>
                         <span class="scrubdb-card-tag scrubdb-tag-info">Read-Only</span>
                     </div>
-                    <p>Deep analysis of the entire <code>wp_options</code> table — identifies the biggest space consumers, autoload breakdown, and plugin-by-plugin usage. You can toggle autoload or delete individual options.</p>
+                    <p>Full analysis of <code>wp_options</code> — autoload health, biggest space consumers, plugin-by-plugin breakdown. Toggle autoload or delete individual options.</p>
                     <div class="scrubdb-actions">
                         <button type="button" class="button scrubdb-btn scrubdb-btn-scan" onclick="scrubdbRun('options_debug', 'scan')"><span class="dashicons dashicons-search"></span> Analyze</button>
                     </div>

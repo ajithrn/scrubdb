@@ -80,7 +80,6 @@
     function render(task, d) {
         if (task === 'database_info')  return renderDbInfo(d);
         if (task === 'debug_log')      return renderDebugLog(d);
-        if (task === 'autoload_audit') return renderAutoload(d);
         if (task === 'options_debug')  return renderOptionsDebug(d);
         if (task === 'repair_tables')  return renderRepair(d);
         return renderStandard(task, d);
@@ -224,7 +223,7 @@
             return 0;
         });
 
-        $('#' + stateId).html(renderTableHTML(stateId));
+        $('#' + stateId).html(s.custom ? renderXrayTable(stateId) : renderTableHTML(stateId));
     };
 
     // Page handler.
@@ -232,7 +231,7 @@
         var s = tableState[stateId];
         if (!s) return;
         s.page = page;
-        $('#' + stateId).html(renderTableHTML(stateId));
+        $('#' + stateId).html(s.custom ? renderXrayTable(stateId) : renderTableHTML(stateId));
     };
 
     // ─────────────────────────────────────────────────
@@ -316,32 +315,6 @@
     // AUTOLOAD AUDIT RENDERER
     // ─────────────────────────────────────────────────
 
-    function renderAutoload(d) {
-        var size = parseFloat(d.size) || 0;
-        var h = badge(size > 1 ? 'red' : 'green', fmtNum(d.count) + ' autoloaded — ' + d.size + ' MB');
-        if (size > 1) {
-            h += '<br><div class="scrubdb-warning"><strong>Warning:</strong> Autoload exceeds 1 MB — this slows every page load.</div>';
-        }
-        if (d.top_options && d.top_options.length) {
-            h += '<h4 style="margin:14px 0 6px;font-size:12px;font-weight:600;color:#1e293b;">Top Autoloaded Options</h4>';
-            h += '<div class="scrubdb-table-wrap"><table><tr><th>Option Name</th><th>Size</th></tr>';
-            d.top_options.forEach(function (r) {
-                var cls = parseFloat(r.size_kb) > 100 ? ' style="color:#dc2626;font-weight:600;"' : '';
-                h += '<tr><td class="scrubdb-mono">' + esc(r.option_name) + '</td><td' + cls + '>' + r.size_kb + ' KB</td></tr>';
-            });
-            h += '</table></div>';
-        }
-        if (d.by_prefix && d.by_prefix.length) {
-            h += '<h4 style="margin:14px 0 6px;font-size:12px;font-weight:600;color:#1e293b;">By Plugin Prefix</h4>';
-            h += '<div class="scrubdb-table-wrap"><table><tr><th>Prefix</th><th>Rows</th><th>Size</th></tr>';
-            d.by_prefix.forEach(function (r) {
-                h += '<tr><td class="scrubdb-mono">' + esc(r.prefix) + '</td><td>' + r.cnt + '</td><td>' + r.size_kb + ' KB</td></tr>';
-            });
-            h += '</table></div>';
-        }
-        return h;
-    }
-
     // ─────────────────────────────────────────────────
     // REPAIR TABLES RENDERER
     // ─────────────────────────────────────────────────
@@ -414,18 +387,15 @@
             h += '<div id="' + stateId + '">' + renderXrayTable(stateId) + '</div>';
         }
 
-        // By prefix.
+        // By prefix breakdown — sortable + paginated.
         if (d.by_prefix && d.by_prefix.length) {
             h += '<h4 style="margin:18px 0 6px;font-size:12px;font-weight:600;color:#1e293b;">By Plugin/Prefix</h4>';
-            h += '<div class="scrubdb-table-wrap"><table>';
-            h += '<tr><th>Prefix</th><th>Rows</th><th>Size</th><th>Autoloaded</th></tr>';
-            d.by_prefix.forEach(function (r) {
-                var cls = parseFloat(r.size_kb) > 100 ? ' style="color:#dc2626;font-weight:600;"' : '';
-                h += '<tr><td class="scrubdb-mono">' + esc(r.prefix) + '</td>';
-                h += '<td>' + r.cnt + '</td><td' + cls + '>' + r.size_kb + ' KB</td>';
-                h += '<td>' + r.autoloaded + ' / ' + r.cnt + '</td></tr>';
-            });
-            h += '</table></div>';
+            h += sortableTable('xray_prefix', d.by_prefix, [
+                { label: 'Prefix', key: 'prefix', mono: true },
+                { label: 'Rows', key: 'cnt' },
+                { label: 'Size', key: 'size_kb', suffix: 'KB' },
+                { label: 'Autoloaded', key: 'autoloaded' }
+            ]);
         }
         return h;
     }
@@ -470,12 +440,13 @@
             h += '<td' + sizeCls + '>' + r.size_kb + ' KB</td>';
 
             // Autoload toggle.
-            var alLabel = r.autoload === 'yes'
-                ? '<span style="color:#dc2626;font-weight:600;">yes</span>'
-                : '<span style="color:#166534;">no</span>';
+            var isAutoloaded = (r.autoload === 'yes' || r.autoload === 'on' || r.autoload === 'auto-on' || r.autoload === 'auto');
+            var alLabel = isAutoloaded
+                ? '<span style="color:#dc2626;font-weight:600;">' + esc(r.autoload) + '</span>'
+                : '<span style="color:#166534;">' + esc(r.autoload) + '</span>';
             h += '<td>' + alLabel;
             if (!prot) {
-                var tgl = r.autoload === 'yes' ? 'Set No' : 'Set Yes';
+                var tgl = isAutoloaded ? 'Set Off' : 'Set On';
                 h += ' <button type="button" class="scrubdb-inline-btn" onclick="scrubdbToggleAutoload(\'' + safe + '\',this)">' + tgl + '</button>';
             }
             h += '</td>';
@@ -497,40 +468,8 @@
         return h;
     }
 
-    // Override sort/page for xray tables to use custom renderer.
-    var origSort = window.scrubdbSort;
-    window.scrubdbSort = function (stateId, key) {
-        var s = tableState[stateId];
-        if (!s) return;
-        if (s.sortKey === key) {
-            s.sortDir = s.sortDir === 'asc' ? 'desc' : 'asc';
-        } else {
-            s.sortKey = key;
-            s.sortDir = 'asc';
-        }
-        s.page = 1;
-        s.items.sort(function (a, b) {
-            var va = a[key] != null ? a[key] : '';
-            var vb = b[key] != null ? b[key] : '';
-            var na = parseFloat(va), nb = parseFloat(vb);
-            if (!isNaN(na) && !isNaN(nb)) {
-                return s.sortDir === 'asc' ? na - nb : nb - na;
-            }
-            va = String(va).toLowerCase();
-            vb = String(vb).toLowerCase();
-            if (va < vb) return s.sortDir === 'asc' ? -1 : 1;
-            if (va > vb) return s.sortDir === 'asc' ? 1 : -1;
-            return 0;
-        });
-        $('#' + stateId).html(s.custom ? renderXrayTable(stateId) : renderTableHTML(stateId));
-    };
-
-    window.scrubdbPage = function (stateId, page) {
-        var s = tableState[stateId];
-        if (!s) return;
-        s.page = page;
-        $('#' + stateId).html(s.custom ? renderXrayTable(stateId) : renderTableHTML(stateId));
-    };
+    // Sort/page for xray uses custom renderer, handled by the s.custom flag
+    // in the main scrubdbSort and scrubdbPage handlers above.
 
     // ─────────────────────────────────────────────────
     // OPTION MANAGEMENT ACTIONS
@@ -547,10 +486,11 @@
             if (res.success && !res.data.error) {
                 fb.html(badge('green', 'Done') + ' ' + esc(res.data.message));
                 var nv = res.data.new_value;
-                var label = nv === 'yes'
-                    ? '<span style="color:#dc2626;font-weight:600;">yes</span>'
-                    : '<span style="color:#166534;">no</span>';
-                btn.textContent = nv === 'yes' ? 'Set No' : 'Set Yes';
+                var isOn = (nv === 'yes' || nv === 'on' || nv === 'auto-on' || nv === 'auto');
+                var label = isOn
+                    ? '<span style="color:#dc2626;font-weight:600;">' + esc(nv) + '</span>'
+                    : '<span style="color:#166534;">' + esc(nv) + '</span>';
+                btn.textContent = isOn ? 'Set Off' : 'Set On';
                 btn.disabled = false;
                 $(btn).parent().contents().first().replaceWith($(label));
             } else {

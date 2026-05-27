@@ -607,6 +607,25 @@
     font-weight: 600;
 }
 
+/* ── Split Tables (side by side) ─────────────── */
+.scrubdb-split-tables {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 8px;
+}
+
+.scrubdb-split-col {
+    min-width: 0;
+    overflow: hidden;
+}
+
+@media (max-width: 1200px) {
+    .scrubdb-split-tables {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* ── Responsive ──────────────────────────────── */
 @media (max-width: 1024px) {
     .scrubdb-cards {

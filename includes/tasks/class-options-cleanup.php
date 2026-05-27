@@ -40,7 +40,7 @@ class ScrubDB_Task_Options_Cleanup {
                     ROUND(LENGTH(option_value) / 1024, 2) AS size_kb
              FROM {$wpdb->options}
              WHERE option_name LIKE %s AND option_value < %d
-             ORDER BY option_value ASC LIMIT 20",
+             ORDER BY option_value ASC LIMIT 100",
             $like, $now
         ) );
 
@@ -103,7 +103,7 @@ class ScrubDB_Task_Options_Cleanup {
                     autoload
              FROM {$wpdb->options}
              WHERE option_name LIKE %s OR option_name LIKE %s
-             ORDER BY LENGTH(option_value) DESC LIMIT 20",
+             ORDER BY LENGTH(option_value) DESC LIMIT 100",
             $like, $slike
         ) );
 
@@ -127,18 +127,20 @@ class ScrubDB_Task_Options_Cleanup {
     public function task_autoload_audit( $mode ) {
         global $wpdb;
 
+        $al_values = self::autoload_values();
+
         $total = $wpdb->get_row(
             "SELECT COUNT(*) AS cnt,
                     ROUND(SUM(LENGTH(option_value)) / 1024 / 1024, 2) AS size_mb
-             FROM {$wpdb->options} WHERE autoload = 'yes'"
+             FROM {$wpdb->options} WHERE autoload IN ($al_values)"
         );
 
         $top_options = $wpdb->get_results(
             "SELECT option_name,
                     ROUND(LENGTH(option_value) / 1024, 2) AS size_kb
              FROM {$wpdb->options}
-             WHERE autoload = 'yes'
-             ORDER BY LENGTH(option_value) DESC LIMIT 20"
+             WHERE autoload IN ($al_values)
+             ORDER BY LENGTH(option_value) DESC LIMIT 100"
         );
 
         $by_prefix = $wpdb->get_results(
@@ -146,8 +148,9 @@ class ScrubDB_Task_Options_Cleanup {
                     COUNT(*) AS cnt,
                     ROUND(SUM(LENGTH(option_value)) / 1024, 2) AS size_kb
              FROM {$wpdb->options}
+             WHERE autoload IN ($al_values)
              GROUP BY prefix
-             ORDER BY size_kb DESC LIMIT 20"
+             ORDER BY size_kb DESC LIMIT 100"
         );
 
         return [
@@ -173,16 +176,18 @@ class ScrubDB_Task_Options_Cleanup {
         );
 
         // ── Autoloaded vs not ──
+        $al_values = self::autoload_values();
+
         $autoload_yes = $wpdb->get_row(
             "SELECT COUNT(*) AS cnt,
                     ROUND(SUM(LENGTH(option_value)) / 1024 / 1024, 2) AS size_mb
-             FROM {$wpdb->options} WHERE autoload = 'yes'"
+             FROM {$wpdb->options} WHERE autoload IN ($al_values)"
         );
 
         $autoload_no = $wpdb->get_row(
             "SELECT COUNT(*) AS cnt,
                     ROUND(SUM(LENGTH(option_value)) / 1024 / 1024, 2) AS size_mb
-             FROM {$wpdb->options} WHERE autoload != 'yes'"
+             FROM {$wpdb->options} WHERE autoload NOT IN ($al_values)"
         );
 
         // ── Transient vs non-transient ──
@@ -232,7 +237,7 @@ class ScrubDB_Task_Options_Cleanup {
             "SELECT SUBSTRING_INDEX(option_name, '_', 2) AS prefix,
                     COUNT(*) AS cnt,
                     ROUND(SUM(LENGTH(option_value)) / 1024, 2) AS size_kb,
-                    SUM(CASE WHEN autoload = 'yes' THEN 1 ELSE 0 END) AS autoloaded
+                    SUM(CASE WHEN autoload IN ($al_values) THEN 1 ELSE 0 END) AS autoloaded
              FROM {$wpdb->options}
              GROUP BY prefix
              ORDER BY size_kb DESC LIMIT 30"
@@ -284,7 +289,11 @@ class ScrubDB_Task_Options_Cleanup {
             return [ 'error' => 'Option not found.', 'mode' => $mode ];
         }
 
-        $new_value = ( 'yes' === $current ) ? 'no' : 'yes';
+        // Determine correct on/off values for this WP version.
+        $al        = self::autoload_on_off();
+        $is_on     = in_array( $current, explode( ',', str_replace( "'", '', self::autoload_values() ) ), true );
+        $new_value = $is_on ? $al['off'] : $al['on'];
+
         $wpdb->update(
             $wpdb->options,
             [ 'autoload' => $new_value ],
@@ -360,6 +369,27 @@ class ScrubDB_Task_Options_Cleanup {
         'current_theme', 'WPLANG', 'blog_charset', 'gmt_offset',
         'timezone_string', 'default_role', 'cron', 'rewrite_rules',
     ];
+
+    /**
+     * SQL-safe string of autoload values that mean "yes, autoload this".
+     * WordPress 6.6+ uses 'on'/'off'/'auto-on'/'auto-off'/'auto' instead of 'yes'/'no'.
+     */
+    private static function autoload_values() {
+        return "'yes','on','auto-on','auto'";
+    }
+
+    /**
+     * Determine the correct autoload "on" and "off" values for this WP version.
+     */
+    private static function autoload_on_off() {
+        global $wpdb;
+        // Check what values actually exist in the database.
+        $has_yes = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->options} WHERE autoload = 'yes' LIMIT 1" );
+        if ( $has_yes > 0 ) {
+            return [ 'on' => 'yes', 'off' => 'no' ];
+        }
+        return [ 'on' => 'on', 'off' => 'off' ];
+    }
 
     /**
      * Check if an option is a protected core option that should never be modified.
